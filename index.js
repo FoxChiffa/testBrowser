@@ -1,121 +1,104 @@
-const express = require("express");
-const http = require("http");
-const nunjucks = require("nunjucks");
-const cors = require('cors')
-const { MongoClient, ObjectId } = require('mongodb')
-const WebSocket = require("ws");
-require('dotenv').config();
+/* global Vue */
 
-const app = express();
-app.use(express.static("public"));
-app.set("view engine", "njk");
-app.use(express.json());
-app.use(cors());
-
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
-
-const clientPromise = new MongoClient(process.env.DB_URI, {
-  useUnifiedTopology: true
-})
-
-async function getTimer(db, active = false) {
-  let data = {
-    type: 'all_timers',
-    data: '',
-    user: "me"
-  };
-
-  if (!active) {
-    data.data = await db.collection('timer').find({}).toArray();
-  } else {
-    data.data = await db.collection('timer').find({isActive : true }).toArray();
-    data.type = 'active_timers';
-    data.data.forEach((timer) => {
-      timer.progress = Date.now() - new Date(timer.start);
+(() => {
+  /*   const notification = (config) =>
+      UIkit.notification({
+        pos: "top-right",
+        timeout: 5000,
+        ...config,
+      });
+   */
+  /* const alert = (message) =>
+    notification({
+      message,
+      status: "danger",
     });
-  }
 
-  data.data.forEach((timer) => {
-    timer.id = timer._id.toString();
-  })
+  const info = (message) =>
+    notification({
+      message,
+      status: "success",
+    });
 
-  return data;
-}
+  const fetchJson = (...args) =>
+    fetch(...args)
+      .then((res) =>
+        res.ok
+          ? res.status !== 204
+            ? res.json()
+            : null
+          : res.text().then((text) => {
+              throw new Error(text);
+            })
+      )
+      .catch((err) => {
+        alert(err.message);
+      }); */
 
-wss.on("connection", async (ws) => {
-  this.ws = ws;
-  const client = await clientPromise.connect();
-  const db = client.db('timer');
+  new Vue({
+    el: "#app",
+    data: {
+      desc: "",
+      activeTimers: [],
+      oldTimers: [],
+      client: new WebSocket(`ws://localhost:${process.env.PORT}`)
+    },
+    methods: {
+      createTimer() {
+        const description = this.desc;
+        this.desc = "";
 
-  let data = await getTimer(db);
+        this.client.send(JSON.stringify({
+          type: "create",
+          body: description,
+        }))
+      },
+      stopTimer(id) {
+        this.desc = "";
 
-  ws.send(JSON.stringify(data))
+        this.client.send(JSON.stringify({
+          type: "stop",
+          body: id,
+        }))
+      },
+      formatTime(ts) {
+        return new Date(ts).toTimeString().split(" ")[0];
+      },
+      formatDuration(d) {
+        d = Math.floor(d / 1000);
+        const s = d % 60;
+        d = Math.floor(d / 60);
+        const m = d % 60;
+        const h = Math.floor(d / 60);
+        return [h > 0 ? h : null, m, s]
+          .filter((x) => x !== null)
+          .map((x) => (x < 10 ? "0" : "") + x)
+          .join(":");
+      },
+    },
+    created() {
+      this.client.addEventListener("message", (message) => {
+        const data = JSON.parse(message.data);
 
-  ws.on("message", async (message) => {
-    const _message = JSON.parse(message);
-    if (_message.type === "create") {
-      const description = _message.body;
+        if (data.type === "all_timers") {
+          this.activeTimers = [];
+          this.oldTimers = [];
 
-      await db.collection('timer').insertOne({
-        start: Date.now(),
-        description: description,
-        isActive: true,
-        progress: 0
-      });
-
-      data = await getTimer(db);
-      ws.send(JSON.stringify(data))
-    }
-
-    if (_message.type === "stop") {
-      const id = _message.body;
-
-      const timer = data.data.filter(function (val) {
-        return val._id == id;
-      });
-
-      console.log(timer[0]['start']);
-      console.log(timer);
-      await db.collection('timer').updateOne({ _id: new ObjectId(id) }, {
-        $set: {
-          isActive: false,
-          end: Date.now(),
-          duration: Date.now() - new Date(timer[0]['start'])
+          data.data.forEach(element => {
+            if (element.isActive === true) {
+              this.activeTimers.push(element);
+            } else {
+              this.oldTimers.push(element);
+            }
+          });
+        }
+        if (data.type === "active_timers") {
+          this.activeTimers = [];
+          data.data.forEach(element => {
+            this.activeTimers.push(element);
+          });
         }
       })
-
-      data = await getTimer(db);
-      ws.send(JSON.stringify(data))
-    }
-  })
-
-  setInterval(async () => {
-    data = await getTimer(db, true);
-    ws.send(JSON.stringify(data))
-  }, 1000)
-})
-
-nunjucks.configure("views", {
-  autoescape: true,
-  express: app,
-  tags: {
-    blockStart: "[%",
-    blockEnd: "%]",
-    variableStart: "[[",
-    variableEnd: "]]",
-    commentStart: "[#",
-    commentEnd: "#]",
-  },
-});
-
-app.get("/", (req, res) => {
-  res.render("index");
-});
-
-const port = process.env.PORT || 4000;
-
-server.listen(port, () => {
-  console.log(`Listening on http://localhost:${port}`);
-});
+    },
+  });
+})();

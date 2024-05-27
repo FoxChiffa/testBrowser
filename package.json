@@ -6,7 +6,7 @@
   "keywords": [],
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "nodemon index.js -e js,njk",
     "dev": "nodemon index.js -e js,njk",
     "test": "echo \"Tests passed\" && exit 0",
     "prettify": "prettier --write",
