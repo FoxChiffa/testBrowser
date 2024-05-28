@@ -1,8 +1,5 @@
 /* global Vue */
-const express = require('express');
 
-const app = express();
-app.get('/', (req, res) => res.send
 (() => {
   /*   const notification = (config) =>
       UIkit.notification({
@@ -44,7 +41,7 @@ app.get('/', (req, res) => res.send
       desc: "",
       activeTimers: [],
       oldTimers: [],
-      client: new WebSocket(`ws://localhost:${process.env.PORT}`)
+      client: new WebSocket(`ws://localhost:10000`)
     },
     methods: {
       createTimer() {
@@ -104,4 +101,4 @@ app.get('/', (req, res) => res.send
       })
     },
   });
-})());
+})();
